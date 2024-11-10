@@ -19,30 +19,53 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins = [
+    "https://frontend-nu-blond-80.vercel.app", // Remove trailing slash
+    "http://localhost:5173"
+];
 
+// Configure CORS for Express
 app.use(cors({
-    origin: [
-        "https://frontend-nu-blond-80.vercel.app/", 'http://localhost:5173',
-      ],
-    methods: ["GET", "POST", 'PUT', 'DELETE', "PATCH", "OPTIONS"],
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     credentials: true,
 }));
 
+// Configure Socket.IO with CORS
 const io = new SocketIOServer(server, {
     cors: {
-        origin: [
-            "https://frontend-nu-blond-80.vercel.app/", 'http://localhost:5173',
-          ],
+        origin: allowedOrigins,
         methods: ["GET", "POST"],
         credentials: true
-    }
+    },
+    transports: ['websocket', 'polling'], // Explicitly specify transports
+    allowEIO3: true // Enable EIO3 (optional)
 });
 
-app.use(express.json());
+// Add error handling for Socket.IO
+io.engine.on("connection_error", (err) => {
+    console.log('Socket.IO connection error:', err);
+});
 
-app.use((req, res, next) => {
-    req.io = io;
-    next();
+// Rest of your Socket.IO connection handling
+io.on("connection", (socket) => {
+    console.log("A client connected:", socket.id);
+
+    socket.on("disconnect", () => {
+        console.log("Client disconnected:", socket.id);
+    });
+});
+
+// Express error handling middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('Error:', err);
+    res.status(500).json({ error: 'Internal server error' });
 });
 
 declare global {
