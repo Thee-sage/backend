@@ -22,7 +22,7 @@ const server = http.createServer(app);
 
 app.use(cors({
     origin: [
-        process.env.FRONTEND_URL || 'http://localhost:5173',
+        "https://frontend-nu-blond-80.vercel.app/", 'http://localhost:5173',
       ],
     methods: ["GET", "POST", 'PUT', 'DELETE', "PATCH", "OPTIONS"],
     credentials: true,
@@ -31,7 +31,7 @@ app.use(cors({
 const io = new SocketIOServer(server, {
     cors: {
         origin: [
-            process.env.FRONTEND_URL || 'http://localhost:5173',
+            "https://frontend-nu-blond-80.vercel.app/", 'http://localhost:5173',
           ],
         methods: ["GET", "POST"],
         credentials: true
