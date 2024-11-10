@@ -346,8 +346,4 @@ process.on('SIGTERM', () => {
                 process.exit(1);
             });
     });
-<<<<<<< HEAD
 });
-=======
-});
->>>>>>> 4e938f302a3618ee50b122ab6e8ae84b6bca756c
