@@ -14,6 +14,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { GameSettings, IGameSettings } from './models/GameSettings';
 import { User, Wallet } from "./models";
 import publicadsRoutes from "./publicads";
+import googleRoutes from "./google"
 dotenv.config();
 
 const app = express();
@@ -266,6 +267,7 @@ app.use("/", demoRoutes);
 app.use('/account', accountRoutes);
 app.use('/admin', adminRoutes);
 app.use('/public', publicadsRoutes);
+app.use("/auth/google",googleRoutes)
 
 if (!process.env.MONGODB_URI) {
     throw new Error('MONGODB_URI is not defined in the environment variables.');
