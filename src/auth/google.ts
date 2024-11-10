@@ -69,7 +69,7 @@ router.post('/login', async (req, res) => {
 });
 
 // Google OAuth route
-router.post('/google/callback', async (req, res) => {
+router.post('/callback', async (req, res) => {
   const { token } = req.body;
   
   if (!token) {
