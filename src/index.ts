@@ -14,7 +14,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { GameSettings, IGameSettings } from './models/GameSettings';
 import { User, Wallet } from "./models";
 import publicadsRoutes from "./publicads";
-import googleRoutes from "./google"
+
 
 dotenv.config();
 
@@ -307,13 +307,13 @@ app.get('/user-wallet', async (req, res) => {
 
 // Routes
 app.use('/wallet', walletRequestRoutes);
-app.use('/api', authRoutes);
+app.use('/api/auth', authRoutes); 
 app.use('/ads', adsRoutes);
 app.use("/", demoRoutes);
 app.use('/account', accountRoutes);
 app.use('/admin', adminRoutes);
 app.use('/public', publicadsRoutes);
-app.use("/auth/google", googleRoutes);
+
 
 // MongoDB connection and server startup
 if (!process.env.MONGODB_URI) {

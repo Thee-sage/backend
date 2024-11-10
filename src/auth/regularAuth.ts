@@ -7,7 +7,7 @@ import nodemailer from 'nodemailer';
 
 const router = express.Router();
 
-import { User,Wallet } from './models'; 
+import { User,Wallet } from '../models'; 
 
 
 
