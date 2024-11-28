@@ -141,7 +141,7 @@ const resetBallDrops = (userId: string, dropResetTime: number): void => {
         userBallDrops[userId] = { count: 0, timestamp: Date.now() };
     }
 };
-
+const port = process.env.PORT || 3001;
 // Socket.IO connection handling
 io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
@@ -385,8 +385,11 @@ mongoose.connect(process.env.MONGODB_URI)
         
      
         
-        server.listen(3001, () => {
-            console.log('Server is running on port 3001');
+        server.listen({
+            port: port,
+            host: '0.0.0.0'
+        }, () => {
+            console.log(`Server is running on port ${port}`);
         });
     })
     .catch((error) => {
