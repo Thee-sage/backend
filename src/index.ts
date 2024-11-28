@@ -59,6 +59,7 @@ export const upload = multer({
 const allowedOrigins = [
     "https://frontend-nu-blond-80.vercel.app",
     "https://frontend-e8s0vd7q4-abhijeet-singhs-projects-05993e05.vercel.app",
+    "https://frontend-eeo4sxg45-abhijeet-singhs-projects-05993e05.vercel.app",
     "http://localhost:5173"
 ];
 
@@ -141,7 +142,6 @@ const resetBallDrops = (userId: string, dropResetTime: number): void => {
         userBallDrops[userId] = { count: 0, timestamp: Date.now() };
     }
 };
-const port = process.env.PORT || 3001;
 // Socket.IO connection handling
 io.on("connection", (socket) => {
     console.log("New client connected:", socket.id);
@@ -378,24 +378,25 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 if (!process.env.MONGODB_URI) {
     throw new Error('MONGODB_URI is not defined in the environment variables.');
 }
+const port = process.env.PORT || 3001;
+console.log('Environment variables:', {
+    PORT: process.env.PORT,
+    NODE_ENV: process.env.NODE_ENV,
+    defaultPort: 3001
+});
+console.log('Final port being used:', port);
 
 mongoose.connect(process.env.MONGODB_URI)
-    .then(async () => {  // add async here
+    .then(async () => {
         console.log('MongoDB connected');
         
-     
-        
         server.listen({
-            port: port,
+            port: parseInt(port.toString()), // Explicitly parse port to number
             host: '0.0.0.0'
         }, () => {
             console.log(`Server is running on port ${port}`);
         });
     })
-    .catch((error) => {
-        console.error('MongoDB connection error:', error);
-        process.exit(1);
-    });
 
 // Handle process termination
 process.on('SIGTERM', () => {
