@@ -209,35 +209,55 @@ router.post('/admin-login', async (req: Request, res: Response) => {
   }
 });
 
+// 1. First, let's add debug logging to the OTP verification endpoint
 router.post('/verify-otp', async (req: Request, res: Response) => {
   const { email, otp } = req.body;
+  console.log('Received OTP verification request:', { email, otp });
 
   try {
+    // Check if OTP data exists
     const storedOtpData = otpStore[email] as LoginOtpData;
     if (!storedOtpData) {
+      console.log('No OTP data found for email:', email);
       return res.status(400).json({ message: 'OTP expired or invalid' });
     }
 
+    // Log OTP expiration check
+    console.log('OTP expiration check:', {
+      currentTime: Date.now(),
+      expirationTime: storedOtpData.expiresAt,
+      isExpired: Date.now() > storedOtpData.expiresAt
+    });
+
     // Check if OTP has expired
     if (Date.now() > storedOtpData.expiresAt) {
+      console.log('OTP expired for email:', email);
       delete otpStore[email];
       return res.status(400).json({ message: 'OTP expired' });
     }
 
+    // Log OTP validation
+    console.log('Validating OTP:', {
+      providedOtp: otp,
+      storedHash: storedOtpData.hashedPart
+    });
+
     const isOtpValid = bcrypt.compareSync(otp, storedOtpData.hashedPart);
     if (!isOtpValid) {
+      console.log('Invalid OTP provided for email:', email);
       return res.status(400).json({ message: 'Invalid OTP' });
     }
 
-    // OTP verified, delete it from the store
-    delete otpStore[email];
-
-    // Generate JWT token after OTP verification
+    // OTP verified, proceed with user lookup and token generation
+    console.log('OTP verified successfully for email:', email);
+    
     const user = await User.findOne({ email });
     if (!user) {
+      console.log('User not found for verified OTP:', email);
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // Generate JWT token
     const token = jwt.sign(
       { 
         uid: user.uid,
@@ -248,7 +268,10 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
       { expiresIn: '1h' }
     );
 
-    res.status(200).json({ 
+    // Clean up verified OTP
+    delete otpStore[email];
+
+    return res.status(200).json({ 
       message: 'OTP verified, login successful',
       token,
       uid: user.uid,
@@ -257,7 +280,7 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
 
   } catch (err) {
     console.error('Error during OTP verification:', err);
-    res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: 'Server error' });
   }
 });
 

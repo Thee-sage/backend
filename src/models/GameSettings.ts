@@ -5,6 +5,7 @@ export interface IGameSettings extends Document {
     initialBalance: number;
     maxBallPrice: number;
     dropResetTime: number;
+    totalCycleTime: number; // New property
     lastSignedInBy: string;
 }
 
@@ -13,6 +14,7 @@ const gameSettingsSchema: Schema = new Schema({
     initialBalance: { type: Number, default: 200 },
     maxBallPrice: { type: Number, default: 20 },
     dropResetTime: { type: Number, default: 60000 },
+    totalCycleTime: { type: Number, default: 600000 }, // 10 minutes in milliseconds
     lastSignedInBy: { type: String, required: true }
 }, {
     timestamps: true
