@@ -23,60 +23,7 @@ function generateDatabaseUid() {
     return new mongoose.Types.ObjectId().toString();
 }
 
-// Regular login route with strict verification check
-router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
 
-    try {
-        // Find user and explicitly select verified field
-        const user = await User.findOne({ email }).select('+verified +password');
-        
-        if (!user) {
-            console.log('Login attempt failed: User not found', { email });
-            return res.status(400).json({ message: 'Invalid credentials' });
-        }
-
-        // Strict verification check
-        if (user.verified === false) {  // Explicit comparison
-            console.log('Login attempt blocked: Unverified user', { email, verified: user.verified });
-            return res.status(403).json({ 
-                message: 'Please verify your email before logging in',
-                needsVerification: true
-            });
-        }
-
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            console.log('Login attempt failed: Invalid password', { email });
-            return res.status(400).json({ message: 'Invalid credentials' });
-        }
-
-        let wallet = await Wallet.findOne({ uid: user.uid });
-        if (!wallet) {
-            wallet = new Wallet({ uid: user.uid, email: user.email });
-            await wallet.save();
-        }
-
-        const token = createJwtToken(user.uid, user.email);
-
-        console.log('Login successful', { email, verified: user.verified });
-        res.status(200).json({ 
-            message: 'Login successful', 
-            token, 
-            uid: user.uid, 
-            balance: wallet.balance || 20,
-            user: {
-                email: user.email,
-                firstName: user.firstName,
-                lastName: user.lastName,
-                role: user.role
-            }
-        });
-    } catch (err) {
-        console.error('Error during login process:', err);
-        res.status(500).json({ message: 'Server error' });
-    }
-});
 
 // Google OAuth route with verification check
 router.post('/callback', async (req, res) => {

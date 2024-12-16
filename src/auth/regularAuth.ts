@@ -84,49 +84,47 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     }
 };
 
-// Regular Authentication Routes
 
-// Login Route
+// Regular login route with strict verification check
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
-    console.log("Login request received", { email });
-
     try {
-        const user = await User.findOne({ email });
-        console.log("User found during login:", user);
-
+        // Find user and explicitly select verified field
+        const user = await User.findOne({ email }).select('+verified +password');
+        
         if (!user) {
+            console.log('Login attempt failed: User not found', { email });
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        if (!user.verified) {
-            console.log("User has not verified email:", email);
-            return res.status(400).json({ message: 'Please verify your email before logging in' });
+        // Strict verification check
+        if (user.verified === false) {  // Explicit comparison
+            console.log('Login attempt blocked: Unverified user', { email, verified: user.verified });
+            return res.status(403).json({ 
+                message: 'Please verify your email before logging in',
+                needsVerification: true
+            });
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.password);
-        console.log("Password validation result:", isPasswordValid);
-
         if (!isPasswordValid) {
+            console.log('Login attempt failed: Invalid password', { email });
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
         let wallet = await Wallet.findOne({ uid: user.uid });
-        console.log("Wallet found for user with UID:", user.uid, "Wallet details:", wallet);
-
         if (!wallet) {
             wallet = new Wallet({ uid: user.uid, email: user.email });
             await wallet.save();
-            console.log("New wallet created for user during login with UID:", user.uid);
         }
 
         const token = createJwtToken(user.uid, user.email);
 
-        console.log("Login successful for user:", email);
+        console.log('Login successful', { email, verified: user.verified });
         res.status(200).json({ 
             message: 'Login successful', 
-            token,
+            token, 
             uid: user.uid, 
             balance: wallet.balance || 20,
             user: {
