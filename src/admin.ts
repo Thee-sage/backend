@@ -9,11 +9,25 @@ import { verifyAdminAuth } from './middlewares/adminauthenticationmiddleware';
 const router = express.Router();
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER || '',
-    pass: process.env.EMAIL_PASS || '',
-  },
+    host: process.env.CPANELEMAIL_HOST,
+    port: parseInt(process.env.CPANELEMAIL_PORTOUT || '587'),
+    secure: false,
+    auth: {
+        user: process.env.CPANELEMAIL_USER,
+        pass: process.env.CPANELEMAIL_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
+
+// Verify email configuration on startup
+transporter.verify(function (error, success) {
+    if (error) {
+        console.log('SMTP server connection error:', error);
+    } else {
+        console.log('SMTP server connection successful');
+    }
 });
 
 const ADMIN_APPROVAL_PASSWORD_HASH = process.env.ADMIN_APPROVAL_PASSWORD_HASH || '';
@@ -41,23 +55,21 @@ const otpStore: Record<string, OtpData | LoginOtpData> = {};
 
 // Helper to generate OTP parts
 function generateOtpParts(): OtpPart[] {
-  const otp = crypto.randomInt(100000000000, 999999999999).toString(); // Generate a 12-digit OTP
-
+  const otp = crypto.randomInt(100000000000, 999999999999).toString();
   const otpParts: OtpPart[] = [];
   for (let i = 0; i < 4; i++) {
-    const part = otp.slice(i * 3, (i + 1) * 3); // Extract each 3-digit part
+    const part = otp.slice(i * 3, (i + 1) * 3);
     const symbol = POSITION_SYMBOLS[i];
     const hashedPart = bcrypt.hashSync(`${part}${symbol}`, 10);
     otpParts.push({ part, symbol, hashedPart });
   }
-
   return otpParts;
 }
 
 // Assign parts to emails
 function assignOtpParts(otpParts: OtpPart[]) {
   const shuffledParts = [...otpParts];
-  shuffledParts.sort(() => Math.random() - 0.5); // Shuffle parts
+  shuffledParts.sort(() => Math.random() - 0.5);
   return [
     { parts: [shuffledParts[0], shuffledParts[1]] },
     { parts: [shuffledParts[2], shuffledParts[3]] },
@@ -76,7 +88,6 @@ router.post('/request-upgrade', async (req: Request, res: Response) => {
     const otpParts = generateOtpParts();
     otpStore[uid] = { parts: otpParts, expiresAt: Date.now() + OTP_EXPIRATION_TIME };
 
-    // Assign OTP parts and send to admin emails
     const emailAssignments = assignOtpParts(otpParts);
     const adminEmails = await User.find({ role: 'admin' }).distinct('email');
     if (adminEmails.length < 2) {
@@ -91,14 +102,14 @@ router.post('/request-upgrade', async (req: Request, res: Response) => {
         .join('');
 
       await transporter.sendMail({
-        from: process.env.EMAIL_USER || '',
+        from: process.env.CPANELEMAIL_USER,
         to: adminEmails[i],
         subject: 'Admin Upgrade OTP',
         html: emailContent,
       });
     }
 
-    setTimeout(() => delete otpStore[uid], OTP_EXPIRATION_TIME); // Remove OTP after expiration time
+    setTimeout(() => delete otpStore[uid], OTP_EXPIRATION_TIME);
     res.status(200).json({ message: 'OTP sent to admins for approval' });
   } catch (err) {
     console.error('Error during admin upgrade request:', err);
@@ -117,7 +128,7 @@ router.post('/upgrade-to-admin', async (req: Request, res: Response) => {
 
     // Validate OTP
     for (let i = 0; i < storedOtpData.parts.length; i++) {
-      const inputPart = otp.slice(i * 3, (i + 1) * 3); // Extract each 3-digit part from input OTP
+      const inputPart = otp.slice(i * 3, (i + 1) * 3);
       const expectedHash = storedOtpData.parts[i].hashedPart;
       const isMatch = bcrypt.compareSync(`${inputPart}${storedOtpData.parts[i].symbol}`, expectedHash);
       
@@ -126,13 +137,11 @@ router.post('/upgrade-to-admin', async (req: Request, res: Response) => {
       }
     }
 
-    // Validate admin approval password
     const isPasswordValid = await bcrypt.compare(password, ADMIN_APPROVAL_PASSWORD_HASH);
     if (!isPasswordValid) {
       return res.status(400).json({ message: 'Invalid password' });
     }
 
-    // Finalize upgrade
     const userToUpgrade = await User.findOne({ uid });
     if (!userToUpgrade) {
       return res.status(404).json({ message: 'User not found' });
@@ -141,7 +150,7 @@ router.post('/upgrade-to-admin', async (req: Request, res: Response) => {
     userToUpgrade.role = 'admin';
     await userToUpgrade.save();
 
-    delete otpStore[uid]; // Clean up OTP from store
+    delete otpStore[uid];
 
     res.status(200).json({ message: 'User upgraded to admin' });
   } catch (err) {
@@ -174,11 +183,9 @@ router.post('/admin-login', async (req: Request, res: Response) => {
       return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
     }
 
-    // Generate OTP
     const otp = crypto.randomInt(100000, 999999).toString();
     const hashedOtp = bcrypt.hashSync(otp, 10);
     
-    // Store OTP with expiration timestamp
     otpStore[user.email] = {
       hashedPart: hashedOtp,
       part: otp,
@@ -186,9 +193,8 @@ router.post('/admin-login', async (req: Request, res: Response) => {
       expiresAt: Date.now() + OTP_EXPIRATION_TIME
     };
 
-    // Send the OTP to the admin's email
     await transporter.sendMail({
-      from: process.env.EMAIL_USER || '',
+      from: process.env.CPANELEMAIL_USER,
       to: user.email,
       subject: 'Admin Login OTP',
       html: `
@@ -200,7 +206,7 @@ router.post('/admin-login', async (req: Request, res: Response) => {
 
     res.status(200).json({ 
       message: 'OTP sent to your email for verification',
-      email: user.email  // Send back email for frontend reference
+      email: user.email
     });
 
   } catch (err) {
@@ -209,34 +215,29 @@ router.post('/admin-login', async (req: Request, res: Response) => {
   }
 });
 
-// 1. First, let's add debug logging to the OTP verification endpoint
 router.post('/verify-otp', async (req: Request, res: Response) => {
   const { email, otp } = req.body;
   console.log('Received OTP verification request:', { email, otp });
 
   try {
-    // Check if OTP data exists
     const storedOtpData = otpStore[email] as LoginOtpData;
     if (!storedOtpData) {
       console.log('No OTP data found for email:', email);
       return res.status(400).json({ message: 'OTP expired or invalid' });
     }
 
-    // Log OTP expiration check
     console.log('OTP expiration check:', {
       currentTime: Date.now(),
       expirationTime: storedOtpData.expiresAt,
       isExpired: Date.now() > storedOtpData.expiresAt
     });
 
-    // Check if OTP has expired
     if (Date.now() > storedOtpData.expiresAt) {
       console.log('OTP expired for email:', email);
       delete otpStore[email];
       return res.status(400).json({ message: 'OTP expired' });
     }
 
-    // Log OTP validation
     console.log('Validating OTP:', {
       providedOtp: otp,
       storedHash: storedOtpData.hashedPart
@@ -248,7 +249,6 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'Invalid OTP' });
     }
 
-    // OTP verified, proceed with user lookup and token generation
     console.log('OTP verified successfully for email:', email);
     
     const user = await User.findOne({ email });
@@ -257,7 +257,6 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Generate JWT token
     const token = jwt.sign(
       { 
         uid: user.uid,
@@ -268,7 +267,6 @@ router.post('/verify-otp', async (req: Request, res: Response) => {
       { expiresIn: '1h' }
     );
 
-    // Clean up verified OTP
     delete otpStore[email];
 
     return res.status(200).json({ 

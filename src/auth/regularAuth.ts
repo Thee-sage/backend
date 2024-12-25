@@ -1,4 +1,3 @@
-// auth/index.ts
 import dotenv from 'dotenv';
 dotenv.config();
 import express from 'express';
@@ -34,13 +33,27 @@ interface CustomJwtPayload extends jwt.JwtPayload {
     uid: string;
 }
 
-// Configure nodemailer
+// Configure nodemailer with cPanel settings
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: process.env.CPANELEMAIL_HOST,
+    port: parseInt(process.env.CPANELEMAIL_PORTIN || '143'),
+    secure: false,
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+        user: process.env.CPANELEMAIL_USER,
+        pass: process.env.CPANELEMAIL_PASS
     },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
+
+// Verify email configuration on startup
+transporter.verify(function (error, success) {
+    if (error) {
+        console.log('SMTP server connection error:', error);
+    } else {
+        console.log('SMTP server connection successful');
+    }
 });
 
 // Helper Functions
@@ -50,10 +63,6 @@ function createJwtToken(uid: string, email: string) {
         JWT_SECRET,
         { expiresIn: '1h' }
     );
-}
-
-function generateDatabaseUid() {
-    return new mongoose.Types.ObjectId().toString();
 }
 
 // Middleware
@@ -84,13 +93,11 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     }
 };
 
-
 // Regular login route with strict verification check
 router.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        // Find user and explicitly select verified field
         const user = await User.findOne({ email }).select('+verified +password');
         
         if (!user) {
@@ -98,8 +105,7 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
 
-        // Strict verification check
-        if (user.verified === false) {  // Explicit comparison
+        if (user.verified === false) {
             console.log('Login attempt blocked: Unverified user', { email, verified: user.verified });
             return res.status(403).json({ 
                 message: 'Please verify your email before logging in',
@@ -165,15 +171,13 @@ router.post('/signup', async (req, res) => {
         });
         await newUser.save();
 
-        // Create wallet
         const newWallet = new Wallet({ uid, email });
         await newWallet.save();
 
-        // Construct verification URL using BASE_URL
         const verificationUrl = `${BASE_URL}/api/auth/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`;
         
         await transporter.sendMail({
-            from: process.env.EMAIL_USER,
+            from: process.env.CPANELEMAIL_USER,
             to: email,
             subject: 'Verify Your Email',
             html: `
@@ -193,7 +197,6 @@ router.post('/signup', async (req, res) => {
     }
 });
 
-// Fixed verification route
 router.get('/verify-email', async (req, res) => {
     const { token, email } = req.query;
 
@@ -215,14 +218,11 @@ router.get('/verify-email', async (req, res) => {
             return res.status(400).json({ message: 'Invalid verification link' });
         }
 
-        // Update user verification status
         user.verified = true;
-        user.verificationToken = ''; // Clear the token
+        user.verificationToken = '';
         await user.save();
 
         console.log("User verified successfully:", email);
-
-        // Redirect to frontend with success parameter
         res.redirect(`${FRONTEND_URL}/complete?verified=true`);
     } catch (err) {
         console.error('Error during verification:', err);
@@ -230,7 +230,6 @@ router.get('/verify-email', async (req, res) => {
     }
 });
 
-// Account Deletion Routes
 router.post('/delete-account-initiate', authMiddleware, async (req, res) => {
     const { password } = req.body;
     const uid = req.user?.uid;
@@ -252,12 +251,17 @@ router.post('/delete-account-initiate', authMiddleware, async (req, res) => {
         user.verificationToken = deleteToken;
         await user.save();
 
-        const deleteVerificationUrl = `http://localhost:3001/api/verify-delete?token=${deleteToken}&uid=${uid}`;
+        const deleteVerificationUrl = `${BASE_URL}/api/verify-delete?token=${deleteToken}&uid=${uid}`;
         await transporter.sendMail({
-            from: process.env.EMAIL_USER,
+            from: process.env.CPANELEMAIL_USER,
             to: user.email,
             subject: 'Account Deletion Verification',
-            html: `<p>Click <a href="${deleteVerificationUrl}">here</a> to verify account deletion.</p>`,
+            html: `
+                <h2>Account Deletion Confirmation</h2>
+                <p>Please click the link below to confirm your account deletion:</p>
+                <p><a href="${deleteVerificationUrl}">Confirm Account Deletion</a></p>
+                <p>If you did not request this deletion, please ignore this email and secure your account.</p>
+            `,
         });
 
         console.log("Account deletion verification email sent to:", user.email);

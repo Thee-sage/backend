@@ -2,10 +2,9 @@ import dotenv from 'dotenv';
 import express, { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import nodemailer from 'nodemailer';
-import { User, Wallet } from './models'; // Import your models
-import OtpToken from './models/OtpToken'; // Import the OTP model
-import authMiddleware from './middlewares/authMiddleware'; // Path to your middleware
-
+import { User, Wallet } from './models';
+import OtpToken from './models/OtpToken';
+import authMiddleware from './middlewares/authMiddleware';
 
 dotenv.config();
 
@@ -22,13 +21,27 @@ declare global {
     }
 }
 
-// Nodemailer transporter configuration
+// Nodemailer transporter configuration using env variables
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: process.env.CPANELEMAIL_HOST,
+    port: parseInt(process.env.CPANELEMAIL_PORTOUT || '587'),
+    secure: false,
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+        user: process.env.CPANELEMAIL_USER,
+        pass: process.env.CPANELEMAIL_PASS
     },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
+
+// Verify email configuration on startup
+transporter.verify(function (error, success) {
+    if (error) {
+        console.log('SMTP server connection error:', error);
+    } else {
+        console.log('SMTP server connection successful');
+    }
 });
 
 router.get('/user/:uid', authMiddleware, async (req: Request, res: Response) => {
@@ -79,17 +92,17 @@ router.post('/delete-account-initiate', async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Incorrect password' });
         }
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const otpToken = new OtpToken({
             uid,
             otp,
-            expiresAt: new Date(Date.now() + 10 * 60 * 1000), // OTP expires in 10 minutes
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiry
         });
         await otpToken.save();
 
         // Send OTP via email
         await transporter.sendMail({
-            from: process.env.EMAIL_USER,
+            from: process.env.CPANELEMAIL_USER,
             to: user.email,
             subject: 'Account Deletion OTP',
             html: `<p>Your OTP for account deletion is: <b>${otp}</b>. It expires in 10 minutes.</p>`,
@@ -133,16 +146,16 @@ router.post('/password-reset-request', async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const otpToken = new OtpToken({
             uid: user.uid,
             otp,
-            expiresAt: new Date(Date.now() + 10 * 60 * 1000), // OTP expires in 10 minutes
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiry
         });
         await otpToken.save();
 
         await transporter.sendMail({
-            from: process.env.EMAIL_USER,
+            from: process.env.CPANELEMAIL_USER,
             to: email,
             subject: 'Password Reset OTP',
             html: `<p>Your OTP for password reset is: <b>${otp}</b>. It expires in 10 minutes.</p>`,

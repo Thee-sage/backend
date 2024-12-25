@@ -1,5 +1,4 @@
 import express from 'express';
-import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { User, Wallet } from '../models';
