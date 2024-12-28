@@ -58,9 +58,8 @@ export const upload = multer({
 // Define allowed origins
 const allowedOrigins = [
     "https://frontend-nu-blond-80.vercel.app",
-    "https://frontend-e8s0vd7q4-abhijeet-singhs-projects-05993e05.vercel.app",
-    "https://frontend-eeo4sxg45-abhijeet-singhs-projects-05993e05.vercel.app",
-    "http://localhost:5173"
+    "http://localhost:5173",
+    "https://plinkochallenge.com/"
 ];
 
 // Configure CORS for Express
